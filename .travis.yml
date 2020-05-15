@@ -17,7 +17,7 @@ matrix:
   allow_failures:
     - go: master
 
-#before_script:
+before_script:
   - go get golang.org/x/lint/golint
 
 script:
