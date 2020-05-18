@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"collectd.org/api"
+	"collectd.org/config"
 	"collectd.org/plugin"
 	"go.uber.org/multierr"
 )
@@ -20,23 +21,10 @@ type restapi struct {
 }
 
 func init() {
-	mux := http.NewServeMux()
-	mux.HandleFunc("/valueList", valueListHandler)
+	ra := &restapi{}
 
-	api := restapi{
-		srv: &http.Server{
-			Addr:    ":8080",
-			Handler: mux,
-		},
-	}
-
-	go func() {
-		if err := api.srv.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
-			plugin.Errorf("%s plugin: ListenAndServe(): %v", pluginName, err)
-		}
-	}()
-
-	plugin.RegisterShutdown(pluginName, api)
+	plugin.RegisterConfig(pluginName, ra)
+	plugin.RegisterShutdown(pluginName, ra)
 }
 
 func valueListHandler(w http.ResponseWriter, req *http.Request) {
@@ -66,11 +54,46 @@ func valueListHandler(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
-func (api restapi) Shutdown(ctx context.Context) error {
+func (ra *restapi) Configure(_ context.Context, rawConfig config.Block) error {
+	fmt.Printf("%s plugin: rawConfig = %v\n", pluginName, rawConfig)
+
+	cfg := struct {
+		Args string // unused
+		Port string
+	}{
+		Port: "8080",
+	}
+
+	if err := rawConfig.Unmarshal(&cfg); err != nil {
+		return err
+	}
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/valueList", valueListHandler)
+
+	ra.srv = &http.Server{
+		Addr:    ":" + cfg.Port,
+		Handler: mux,
+	}
+
+	go func() {
+		if err := ra.srv.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
+			plugin.Errorf("%s plugin: ListenAndServe(): %v", pluginName, err)
+		}
+	}()
+
+	return nil
+}
+
+func (ra *restapi) Shutdown(ctx context.Context) error {
+	if ra == nil || ra.srv == nil {
+		return nil
+	}
+
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	return api.srv.Shutdown(ctx)
+	return ra.srv.Shutdown(ctx)
 }
 
 func main() {} // ignored

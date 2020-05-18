@@ -34,3 +34,20 @@ Then build the plugin with the "c-shared" buildmode:
 ```bash
 go build -buildmode=c-shared -o restapi.so
 ```
+
+## Configuration
+
+### Synopsis
+
+```
+LoadPlugin restapi
+<Plugin "restapi">
+  Port "8080"
+</Plugin>
+```
+
+### Options
+
+*   **Port** *Port*
+
+    Post to listen to. Defaults to `8080`.
