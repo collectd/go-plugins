@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"time"
 
@@ -54,30 +55,48 @@ func valueListHandler(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
+type srvConfig struct {
+	Args     string // unused
+	Addr     string
+	Port     string
+	CertFile string
+	KeyFile  string
+}
+
 func (ra *restapi) Configure(_ context.Context, rawConfig config.Block) error {
-	fmt.Printf("%s plugin: rawConfig = %v\n", pluginName, rawConfig)
-
-	cfg := struct {
-		Args string // unused
-		Port string
-	}{
-		Port: "8080",
-	}
-
+	cfg := srvConfig{}
 	if err := rawConfig.Unmarshal(&cfg); err != nil {
 		return err
+	}
+
+	if (cfg.CertFile == "") != (cfg.KeyFile == "") {
+		return fmt.Errorf("CertFile=%q, KeyFile=%q; need both for TLS setup",
+			cfg.CertFile, cfg.KeyFile)
+	}
+
+	if cfg.Port == "" {
+		cfg.Port = "8080"
+		if cfg.CertFile != "" {
+			cfg.Port = "8443"
+		}
 	}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/valueList", valueListHandler)
 
 	ra.srv = &http.Server{
-		Addr:    ":" + cfg.Port,
+		Addr:    net.JoinHostPort(cfg.Addr, cfg.Port),
 		Handler: mux,
 	}
 
 	go func() {
-		if err := ra.srv.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
+		var err error
+		if cfg.CertFile != "" {
+			err = ra.srv.ListenAndServeTLS(cfg.CertFile, cfg.KeyFile)
+		} else {
+			err = ra.srv.ListenAndServe()
+		}
+		if !errors.Is(err, http.ErrServerClosed) {
 			plugin.Errorf("%s plugin: ListenAndServe(): %v", pluginName, err)
 		}
 	}()

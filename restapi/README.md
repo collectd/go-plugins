@@ -42,12 +42,24 @@ go build -buildmode=c-shared -o restapi.so
 ```
 LoadPlugin restapi
 <Plugin "restapi">
-  Port "8080"
+  Addr "::"
+  Port "8443"
+  CertFile "/path/to/cert_file.pem"
+  KeyFile "/path/to/key_file.pem"
 </Plugin>
 ```
 
 ### Options
 
+*   **Addr** *Network address*
+
+    Addredd to listen to. Defaults to `""` (any address).
 *   **Port** *Port*
 
-    Post to listen to. Defaults to `8080`.
+    Post to listen to. Defaults to `8080` (`8443` if **CertFile** is specified).
+*   **CertFile** *Path*<br>
+    **KeyFile** *Path*
+
+    TLS certificate and key files. Refer to
+    [`"net/http".ListenAndServeTLS`](https://golang.org/pkg/net/http/#ListenAndServeTLS)
+    for more information on the TLS setup.
